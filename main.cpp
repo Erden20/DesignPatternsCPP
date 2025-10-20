@@ -1,96 +1,114 @@
 #include <iostream>
+#include <vector>
 #include <string>
-#include <memory>
+#include <algorithm>
 using namespace std;
 
-// Интерфейс стратегии
-class IPaymentStrategy {
+
+class IObserver {
 public:
-    virtual void pay(double amount) = 0;
-    virtual ~IPaymentStrategy() {}
+    virtual void update(double usdRate, double eurRate) = 0;
+    virtual ~IObserver() {}
 };
 
-// Реализация оплаты банковской картой
-class CreditCardPayment : public IPaymentStrategy {
-    string cardNumber;
+
+class ISubject {
 public:
-    CreditCardPayment(string number) : cardNumber(number) {}
-    void pay(double amount) override {
-        cout << "Оплата " << amount << " тенге через банковскую карту: " << cardNumber << endl;
+    virtual void addObserver(IObserver* obs) = 0;
+    virtual void removeObserver(IObserver* obs) = 0;
+    virtual void notifyObservers() = 0;
+    virtual ~ISubject() {}
+};
+
+
+class CurrencyExchange : public ISubject {
+private:
+    vector<IObserver*> observers;
+    double usdRate = 0.0;
+    double eurRate = 0.0;
+
+public:
+    void setRates(double usd, double eur) {
+        usdRate = usd;
+        eurRate = eur;
+        cout << "\n[CurrencyExchange] Курсы обновлены: USD = " << usdRate << ", EUR = " << eurRate << endl;
+        notifyObservers();
+    }
+
+    void addObserver(IObserver* obs) override {
+        
+        if (find(observers.begin(), observers.end(), obs) == observers.end())
+            observers.push_back(obs);
+    }
+
+    void removeObserver(IObserver* obs) override {
+        observers.erase(remove(observers.begin(), observers.end(), obs), observers.end());
+    }
+
+    void notifyObservers() override {
+        for (auto obs : observers) {
+            if (obs) obs->update(usdRate, eurRate);
+        }
     }
 };
 
-// Реализация оплаты через PayPal
-class PayPalPayment : public IPaymentStrategy {
+
+class MobileAppObserver : public IObserver {
+public:
+    void update(double usdRate, double eurRate) override {
+        cout << "📱 MobileApp: уведомление — USD=" << usdRate << ", EUR=" << eurRate << endl;
+    }
+};
+
+class WebAppObserver : public IObserver {
+public:
+    void update(double usdRate, double eurRate) override {
+        cout << "🌐 WebApp: обновлён прайс — USD=" << usdRate << ", EUR=" << eurRate << endl;
+    }
+};
+
+class EmailNotifierObserver : public IObserver {
+private:
     string email;
 public:
-    PayPalPayment(string mail) : email(mail) {}
-    void pay(double amount) override {
-        cout << "Оплата " << amount << " тенге через PayPal: " << email << endl;
+    EmailNotifierObserver(const string& e) : email(e) {}
+    void update(double usdRate, double eurRate) override {
+        cout << "📧 Email to " << email << ": курсы USD=" << usdRate << ", EUR=" << eurRate << endl;
     }
 };
 
-// Реализация оплаты криптовалютой
-class CryptoPayment : public IPaymentStrategy {
-    string walletAddress;
-public:
-    CryptoPayment(string address) : walletAddress(address) {}
-    void pay(double amount) override {
-        cout << "Оплата " << amount << " тенге с помощью криптовалютного кошелька: " << walletAddress << endl;
-    }
-};
 
-// Контекст — использует выбранную стратегию
-class PaymentContext {
-    unique_ptr<IPaymentStrategy> strategy;
-public:
-    void setStrategy(IPaymentStrategy* s) {
-        strategy.reset(s);
-    }
-
-    void checkout(double amount) {
-        if (strategy)
-            strategy->pay(amount);
-        else
-            cout << "Способ оплаты не выбран!" << endl;
-    }
-};
-
-// Главная программа
 int main() {
     setlocale(LC_ALL, "Russian");
-    PaymentContext context;
-    int choice;
-    double amount;
 
-    cout << "=== Система оплаты ===" << endl;
-    cout << "Введите сумму: ";
-    cin >> amount;
+    CurrencyExchange exchange;
 
-    cout << "\nВыберите способ оплаты:\n";
-    cout << "1. Банковская карта\n";
-    cout << "2. PayPal\n";
-    cout << "3. Криптовалюта\n";
-    cout << "Ваш выбор: ";
-    cin >> choice;
+    MobileAppObserver mobile;
+    WebAppObserver web;
+    EmailNotifierObserver email("student@example.com");
 
-    switch (choice) {
-        case 1:
-            context.setStrategy(new CreditCardPayment("1234-5678-9012"));
-            break;
-        case 2:
-            context.setStrategy(new PayPalPayment("user@example.com"));
-            break;
-        case 3:
-            context.setStrategy(new CryptoPayment("0xABC123XYZ"));
-            break;
-        default:
-            cout << "Неверный выбор!" << endl;
-            return 0;
-    }
 
-    cout << endl;
-    context.checkout(amount);
+    exchange.addObserver(&mobile);
+    exchange.addObserver(&web);
+    exchange.addObserver(&email);
 
+    cout << "=== Demo Observer (CurrencyExchange) ===\n";
+    cout << "Сценарий: обновляем курсы и смотрим, как подписчики получают уведомления.\n";
+
+
+    exchange.setRates(478.5, 506.3);
+
+
+    exchange.setRates(480.2, 508.1);
+
+
+    cout << "\nУдаляем WebAppObserver (больше не будет получать уведомления)...\n";
+    exchange.removeObserver(&web);
+
+    exchange.setRates(481.0, 507.9);
+
+    cout << "\nДемонстрация завершена. Нажмите Enter для выхода...";
+    cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // очистка
+    cin.get();
     return 0;
 }
